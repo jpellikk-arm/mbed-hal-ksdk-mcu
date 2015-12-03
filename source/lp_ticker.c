@@ -103,8 +103,8 @@ void lp_ticker_init(void) {
         RTC_HAL_SetAlarmReg(RTC_BASE, 0);
         RTC_HAL_EnableCounter(RTC_BASE, true);
     }
-    vIRQ_ClearPendingIRQ(RTC_IRQn);
     vIRQ_SetVector(RTC_IRQn, (uint32_t)rct_isr);
+    vIRQ_ClearPendingIRQ(RTC_IRQn);
     vIRQ_EnableIRQ(RTC_IRQn);
 
     // configure LPTMR
