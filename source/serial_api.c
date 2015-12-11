@@ -17,6 +17,10 @@
 
 #if DEVICE_SERIAL
 
+#ifndef YOTTA_CFG_MBED_OS_STDIO_DEFAULT_BAUD
+#   define YOTTA_CFG_MBED_OS_STDIO_DEFAULT_BAUD 9600
+#endif
+
 // math.h required for floating point operations for baud rate calculation
 #include <math.h>
 #include "mbed-drivers/mbed_assert.h"
@@ -101,6 +105,7 @@ void serial_init(serial_t *obj, PinName tx, PinName rx) {
     }
 
     if (obj->serial.instance == STDIO_UART) {
+        UART_HAL_SetBaudRate(obj->serial.address, uartSourceClock, YOTTA_CFG_MBED_OS_STDIO_DEFAULT_BAUD);
         stdio_uart_inited = 1;
         memcpy(&stdio_uart, obj, sizeof(serial_t));
     }
