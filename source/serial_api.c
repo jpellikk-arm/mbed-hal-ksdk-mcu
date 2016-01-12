@@ -17,10 +17,6 @@
 
 #if DEVICE_SERIAL
 
-#ifndef YOTTA_CFG_MBED_OS_STDIO_DEFAULT_BAUD
-#   define YOTTA_CFG_MBED_OS_STDIO_DEFAULT_BAUD 9600
-#endif
-
 // math.h required for floating point operations for baud rate calculation
 #include <math.h>
 #include "mbed-drivers/mbed_assert.h"
@@ -68,9 +64,6 @@ static void serial_rx_set_char_match(serial_t *obj, uint8_t char_match);
 static uint32_t serial_irq_ids[UART_NUM] = {0};
 static uart_irq_handler irq_handler;
 
-int stdio_uart_inited = 0;
-serial_t stdio_uart;
-
 void serial_init(serial_t *obj, PinName tx, PinName rx) {
     uint32_t uart_tx = pinmap_peripheral(tx, PinMap_UART_TX);
     uint32_t uart_rx = pinmap_peripheral(rx, PinMap_UART_RX);
@@ -104,11 +97,6 @@ void serial_init(serial_t *obj, PinName tx, PinName rx) {
 #endif
     }
 
-    if (obj->serial.instance == STDIO_UART) {
-        UART_HAL_SetBaudRate(obj->serial.address, uartSourceClock, YOTTA_CFG_MBED_OS_STDIO_DEFAULT_BAUD);
-        stdio_uart_inited = 1;
-        memcpy(&stdio_uart, obj, sizeof(serial_t));
-    }
     uint8_t fifo_size = UART_HAL_GetTxFifoSize(obj->serial.address);
     obj->serial.entry_count = (fifo_size == 0 ? 1 : 0x1 << (fifo_size + 1));
     UART_HAL_ClearAllNonAutoclearStatusFlags(obj->serial.address);
