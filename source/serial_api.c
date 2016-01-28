@@ -230,14 +230,11 @@ void serial_putc(serial_t *obj, int c) {
 int serial_readable(serial_t *obj) {
     if (UART_HAL_GetStatusFlag(obj->serial.address, kUartRxOverrun))
         UART_HAL_ClearStatusFlag(obj->serial.address, kUartRxOverrun);
-    return UART_HAL_IsRxDataRegFull(obj->serial.address);
+    return !UART_HAL_IsRxFifoEmpty(obj->serial.address);
 }
 
 int serial_writable(serial_t *obj) {
-    if (UART_HAL_GetStatusFlag(obj->serial.address, kUartRxOverrun))
-        UART_HAL_ClearStatusFlag(obj->serial.address, kUartRxOverrun);
-
-    return UART_HAL_IsTxDataRegEmpty(obj->serial.address);
+    return obj->serial.entry_count - UART_HAL_GetTxDatawordCountInFifo(obj->serial.address);
 }
 
 void serial_pinout_tx(PinName tx) {
