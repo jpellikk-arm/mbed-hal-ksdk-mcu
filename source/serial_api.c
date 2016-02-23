@@ -233,6 +233,32 @@ int serial_readable(serial_t *obj) {
     return !UART_HAL_IsRxFifoEmpty(obj->serial.address);
 }
 
+int serial_error(serial_t *obj) {
+    int error = 0;
+    uint8_t overrun = UART_HAL_GetStatusFlag(obj->serial.address, kUartRxOverrun);
+    uint8_t parity = UART_HAL_GetStatusFlag(obj->serial.address, kUartParityErr);
+    uint8_t framing = UART_HAL_GetStatusFlag(obj->serial.address, kUartFrameErr);
+    uint8_t overflow = (HW_UART_SFIFO_RD(obj->serial.address) >> (uint8_t)(BP_UART_SFIFO_RXOF)) & 1U;
+
+    if (overrun) {
+        UART_HAL_ClearStatusFlag(obj->serial.address, kUartRxOverrun);
+        error |= SERIAL_ERROR_RX_OVERRUN;
+    }
+    if (parity) {
+        UART_HAL_ClearStatusFlag(obj->serial.address, kUartParityErr);
+        error |= SERIAL_ERROR_RX_PARITY;
+    }
+    if (framing) {
+        UART_HAL_ClearStatusFlag(obj->serial.address, kUartFrameErr);
+        error |= SERIAL_ERROR_RX_FRAMING;
+    }
+    if (overflow) {
+        error |= SERIAL_ERROR_RX_OVERFLOW;
+        HW_UART_SFIFO_SET(obj->serial.address, BM_UART_SFIFO_RXOF);
+    }
+    return error;
+}
+
 int serial_writable(serial_t *obj) {
     return obj->serial.entry_count - UART_HAL_GetTxDatawordCountInFifo(obj->serial.address);
 }
