@@ -51,6 +51,7 @@ static uint8_t serial_is_tx_complete(serial_t *obj);
 static void serial_tx_buffer_set(serial_t *obj, void *tx, size_t length, uint8_t width);
 static void serial_rx_buffer_set(serial_t *obj, void *rx, size_t length, uint8_t width);
 static void serial_rx_set_char_match(serial_t *obj, uint8_t char_match);
+static void serial_overrun_reset(uint32_t addr);
 
 /* TODO:
     putchar/getchar 9 and 10 bits support
@@ -150,37 +151,43 @@ void serial_format(serial_t *obj, int data_bits, SerialParity parity, int stop_b
 /******************************************************************************
  * INTERRUPTS HANDLING
  ******************************************************************************/
-static inline void uart_irq(uint32_t transmit_empty, uint32_t receive_full, uint32_t index) {
+static inline void uart_irq(uint32_t base, uint32_t index) {
+    bool transmit_empty, receive_full;
+    transmit_empty = UART_HAL_GetTxDataRegEmptyIntCmd(base) && UART_HAL_IsTxDataRegEmpty(base);
+    receive_full = UART_HAL_GetRxDataRegFullIntCmd(base) && UART_HAL_IsRxDataRegFull(base);
+
     if (serial_irq_ids[index] != 0) {
         if (transmit_empty)
             irq_handler(serial_irq_ids[index], TxIrq);
 
-    if (receive_full)
-        irq_handler(serial_irq_ids[index], RxIrq);
+        if (receive_full)
+            irq_handler(serial_irq_ids[index], RxIrq);
+    }
+	
+    if (UART_HAL_GetStatusFlag(base, kUartRxOverrun)) {
+        serial_overrun_reset(base);
     }
 }
 
 void uart0_irq() {
-    uart_irq(UART_HAL_GetTxDataRegEmptyIntCmd(UART0_BASE) && UART_HAL_IsTxDataRegEmpty(UART0_BASE), UART_HAL_GetRxDataRegFullIntCmd(UART0_BASE) && UART_HAL_IsRxDataRegFull(UART0_BASE), 0);
-    if (UART_HAL_GetStatusFlag(UART0_BASE, kUartRxOverrun))
-        UART_HAL_ClearStatusFlag(UART0_BASE, kUartRxOverrun);
+    uart_irq(UART0_BASE, 0);    
 }
 void uart1_irq() {
-    uart_irq(UART_HAL_GetTxDataRegEmptyIntCmd(UART1_BASE) && UART_HAL_IsTxDataRegEmpty(UART1_BASE), UART_HAL_GetRxDataRegFullIntCmd(UART1_BASE) && UART_HAL_IsRxDataRegFull(UART1_BASE), 1);
+    uart_irq(UART1_BASE, 1);
 }
 
 void uart2_irq() {
-    uart_irq(UART_HAL_GetTxDataRegEmptyIntCmd(UART2_BASE) && UART_HAL_IsTxDataRegEmpty(UART2_BASE), UART_HAL_GetRxDataRegFullIntCmd(UART2_BASE) && UART_HAL_IsRxDataRegFull(UART2_BASE), 2);
+    uart_irq(UART2_BASE, 2);
 }
 
 #if (UART_NUM > 3)
 
 void uart3_irq() {
-    uart_irq(UART_HAL_GetTxDataRegEmptyIntCmd(UART3_BASE) && UART_HAL_IsTxDataRegEmpty(UART3_BASE), UART_HAL_GetRxDataRegFullIntCmd(UART3_BASE) && UART_HAL_IsRxDataRegFull(UART3_BASE), 3);
+    uart_irq(UART3_BASE, 3);
 }
 
 void uart4_irq() {
-    uart_irq(UART_HAL_GetTxDataRegEmptyIntCmd(UART4_BASE) && UART_HAL_IsTxDataRegEmpty(UART4_BASE), UART_HAL_GetRxDataRegFullIntCmd(UART4_BASE) && UART_HAL_IsRxDataRegFull(UART4_BASE), 4);
+    uart_irq(UART4_BASE, 4);
 }
 #endif
 
@@ -227,9 +234,25 @@ void serial_putc(serial_t *obj, int c) {
     UART_HAL_Putchar(obj->serial.address, (uint8_t)c);
 }
 
+/** This function has been introduced due to a HW bug
+ *  in the Kinetis UART module: after an overrun in the
+ *  FIFO occurs (a character isn't fetched by IRQ when
+ *  it is already full and a new one arrives), the FIFO
+ *  stops working; write and read pointers of the FIFO
+ *  will have an offset afterwards.
+ */
+static void serial_overrun_reset(uint32_t addr)
+{
+    HW_UART_PFIFO_CLR(addr, UART_PFIFO_RXFE_MASK);
+    HW_UART_CFIFO_SET(addr, UART_CFIFO_RXFLUSH_MASK);
+    HW_UART_D_RD(addr); /* Dummy data read */
+    HW_UART_PFIFO_SET(addr, UART_PFIFO_RXFE_MASK);
+}
+
 int serial_readable(serial_t *obj) {
-    if (UART_HAL_GetStatusFlag(obj->serial.address, kUartRxOverrun))
-        UART_HAL_ClearStatusFlag(obj->serial.address, kUartRxOverrun);
+    if (UART_HAL_GetStatusFlag(obj->serial.address, kUartRxOverrun)) {
+        serial_overrun_reset(obj->serial.address);
+    }
     return !UART_HAL_IsRxFifoEmpty(obj->serial.address);
 }
 
@@ -318,7 +341,7 @@ static uint32_t serial_rx_error_event_check(serial_t *obj)
 
     if ((event & SERIAL_EVENT_RX_OVERRUN_ERROR) && overrun) {
         result |= SERIAL_EVENT_RX_OVERRUN_ERROR;
-        UART_HAL_ClearStatusFlag(obj->serial.address, kUartRxOverrun);
+        serial_overrun_reset(obj->serial.address);
     }
     if ((event & SERIAL_EVENT_RX_FRAMING_ERROR) && framing) {
         result |= SERIAL_EVENT_RX_FRAMING_ERROR;
