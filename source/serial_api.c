@@ -243,10 +243,13 @@ void serial_putc(serial_t *obj, int c) {
  */
 static void serial_overrun_reset(uint32_t addr)
 {
-    HW_UART_PFIFO_CLR(addr, UART_PFIFO_RXFE_MASK);
-    HW_UART_CFIFO_SET(addr, UART_CFIFO_RXFLUSH_MASK);
-    HW_UART_D_RD(addr); /* Dummy data read */
-    HW_UART_PFIFO_SET(addr, UART_PFIFO_RXFE_MASK);
+    UART_HAL_DisableReceiver(addr);
+    UART_HAL_SetRxFifoCmd(addr, false);
+    UART_HAL_FlushRxFifo(addr);
+    UART_HAL_ClearStatusFlag(addr, kUartRxOverrun);
+    UART_HAL_SetRxFifoCmd(addr, true);
+    UART_HAL_FlushRxFifo(addr);
+    UART_HAL_EnableReceiver(addr);
 }
 
 int serial_readable(serial_t *obj) {
