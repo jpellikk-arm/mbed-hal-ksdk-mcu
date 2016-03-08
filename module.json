@@ -64,7 +64,7 @@
     "mbed-hal-ksdk-mcu/TARGET_KSDK_CODE/utilities"
   ],
   "dependencies": {
-    "uvisor-lib": "^1.0.0",
+    "uvisor-lib": ">=1.0.0,<3.0.0",
     "mbed-hal": "*"
   },
   "targetDependencies": {
