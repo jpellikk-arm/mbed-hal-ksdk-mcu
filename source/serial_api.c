@@ -267,7 +267,7 @@ int serial_error(serial_t *obj) {
     uint8_t overflow = (HW_UART_SFIFO_RD(obj->serial.address) >> (uint8_t)(BP_UART_SFIFO_RXOF)) & 1U;
 
     if (overrun) {
-        UART_HAL_ClearStatusFlag(obj->serial.address, kUartRxOverrun);
+        serial_overrun_reset(obj->serial.address);
         error |= SERIAL_ERROR_RX_OVERRUN;
     }
     if (parity) {
